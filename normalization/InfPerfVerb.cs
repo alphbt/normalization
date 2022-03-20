@@ -5,33 +5,63 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Text.RegularExpressions;
+using Python.Included;
+using Python.Runtime;
 
 namespace normalization
 {
     public class InfPerfVerb
     {
-        private Dictionary<string, HashSet<string>> _PerfectVerbs = new Dictionary<string, HashSet<string>>();
+        private Dictionary<string, string> _PerfectVerbs = new Dictionary<string, string>();
 
-        public void FullDictionary(string fileName)
+        async public void FullDictionary(string fileName)
         {
+            Installer.InstallPath = Path.GetFullPath(".");
+            await Installer.SetupPython();
+
+            PythonEngine.Initialize();
+
+            if (!Installer.IsModuleInstalled("pymorphy2"))
+            {
+                Installer.TryInstallPip();
+                Installer.PipInstallModule("pymorphy2");
+            }
+
+            dynamic pm = Py.Import("pymorphy2");
+            dynamic morph = pm.MorphAnalyzer();
+            //PyModule scope = Py.CreateScope();
+            //string result = morph.parse("начать")[0].tag;
+            //Console.WriteLine(scope.Exec(""));
+            
             _PerfectVerbs.Clear();
 
             string[] lines = System.IO.File.ReadAllLines(fileName, Encoding.UTF8);
 
-            var resultLines = lines.Select(l => DeleteNumbersAndTrans(l).Split(new char[] { ' ' })).ToList();
+            var linesWithoutTranAndNum = lines.Select(l => DeleteNumbersAndTrans(l).Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                                   .ToList();
+
+            var resultLines = linesWithoutTranAndNum.Select(l => l.Select(x => x)
+                                                                  .Where(x => 
+                                                                  {
+                                                                      foreach(var i in morph.parse(x))
+                                                                      {
+                                                                          string r = (i.tag).ToString();
+                                                                          if(r.Contains("INFN") || r.Contains("VERB") || r.Contains("UNKN")) return true;
+                                                                      }
+                                                                      return false;
+                                                                   })
+                                                                  .ToList())
+                                                    .ToList();
 
             foreach(var line in resultLines)
             {
-                if (_PerfectVerbs.ContainsKey(line[0]))
+                if (!_PerfectVerbs.ContainsKey(line[0]))
                 {
-                    _PerfectVerbs[line[0]].Add(line[1]);
+                    _PerfectVerbs.Add(line[0], line[1]);
                 }
-                else
-                {
-                    _PerfectVerbs.Add(line[0], new HashSet<string>());
-                    _PerfectVerbs[line[0]].Add(line[1]);
-                }
+         
             }
+            PythonEngine.Shutdown();
         }
 
         private string DeleteNumbersAndTrans(string str)
@@ -41,7 +71,7 @@ namespace normalization
             return str;
         }
 
-        public Dictionary<string, HashSet<string>> PerfectVerbs { get => _PerfectVerbs; }
+        public Dictionary<string, string> PerfectVerbs { get => _PerfectVerbs; }
 
     }
 }

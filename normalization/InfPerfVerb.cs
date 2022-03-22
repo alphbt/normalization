@@ -55,9 +55,9 @@ namespace normalization
 
             foreach(var line in resultLines)
             {
-                if (!_PerfectVerbs.ContainsKey(line[0]))
+                if (!_PerfectVerbs.ContainsKey(line[1]))
                 {
-                    _PerfectVerbs.Add(line[0], line[1]);
+                    _PerfectVerbs.Add(line[1], line[0]);
                 }
          
             }

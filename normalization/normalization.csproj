@@ -16,6 +16,7 @@
   <ItemGroup>
     <PackageReference Include="Python.Included" Version="3.10.0-preview1" />
     <PackageReference Include="pythonnet" Version="3.0.0-preview2022-03-03" />
+    <PackageReference Include="ServiceStack.Text" Version="6.0.2" />
   </ItemGroup>
 
 </Project>

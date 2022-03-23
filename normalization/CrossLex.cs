@@ -1,23 +1,58 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Nito.AsyncEx.Synchronous;
 using Python.Included;
 using Python.Runtime;
+using static MoreLinq.Extensions.InsertExtension;
+using static MoreLinq.Extensions.BacksertExtension;
+
 
 namespace normalization
 {
-    public class CrossLex
+    public class CrossLex : IDisposable
     {
-        private List<List<string>> words = new List<List<string>>();
+        static int MultiHash(IEnumerable<object> items)
+        {
+            int h = 0;
 
-        async public void FullList(string fileName, Dictionary<string, string> perfPairs)
+            foreach (object item in items)
+            {
+                h = Combine(h, item != null ? item.GetHashCode() : 0);
+            }
+
+            return h;
+        }
+        static int Combine(int x, int y)
+        {
+            unchecked
+            {
+                // This isn't a particularly strong way to combine hashes, but it's
+                // cheap, respects ordering, and should work for the majority of cases.
+                return (x << 5) + 3 + x ^ y;
+            }
+        }
+        protected internal class SequentialStringComparer : IEqualityComparer<IEnumerable<string>>
+        {
+            public bool Equals(IEnumerable<string>? x, IEnumerable<string>? y) => Enumerable.SequenceEqual(x!, y!);
+            public int GetHashCode(IEnumerable<string> obj) => MultiHash(obj);
+        }
+
+        static private List<string> tags = new List<string>() { "коллок", "локал", "книжн", "вульг", "неправ", "mb", "fig", "идиом", "и", "прямое" };
+        private bool disposedValue;
+
+        static private dynamic importerPyMorphy2;
+        static private dynamic morphAnalyzer;
+
+        public CrossLex()
         {
             Installer.InstallPath = Path.GetFullPath(".");
-            await Installer.SetupPython();
 
+            Installer.SetupPython().WaitAndUnwrapException();
             PythonEngine.Initialize();
 
             if (!Installer.IsModuleInstalled("pymorphy2"))
@@ -26,31 +61,113 @@ namespace normalization
                 Installer.PipInstallModule("pymorphy2");
             }
 
-            dynamic pm = Py.Import("pymorphy2");
-            dynamic morph = pm.MorphAnalyzer();
+            importerPyMorphy2 = Py.Import("pymorphy2");
+            morphAnalyzer = importerPyMorphy2.MorphAnalyzer();
+        }
 
-            var word = File.ReadLines(fileName, Encoding.UTF8)
-                           .TakeWhile(l => l.Count() != 0)
-                           .Select(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                           .ToList()[0][1];
+        static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l)
+        {
+            return l.Select(x => x.Split(new char[] { ' ', '.', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries))
+                        .Where(x => x.Count() != 0);
+        }
 
-            //var lines = new List<string>();
-            var hasPredicates = File.ReadLines(fileName, Encoding.UTF8)
-                                    .SkipWhile(l => !l.Contains("Section: Has Predicates"))
+        static IEnumerable<string> ReadFromFile(string fileName, string crossLexSection)
+        {
+            return File.ReadLines(fileName, Encoding.UTF8)
+                                    .SkipWhile(l => !l.Contains(crossLexSection))
                                     .Skip(2)
-                                    .TakeWhile(l => l.Count() != 0); ;
-           
+                                    .TakeWhile(l => l.Count() != 0);
+        }
 
-            var governedByVerb = File.ReadLines(fileName, Encoding.UTF8)
-                                     .SkipWhile(l => !l.Contains("Section: Governed by Verbs"))
-                                     .Skip(2)
-                                     .TakeWhile(l => l.Count() != 0);
+        static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l)
+        {
+            return l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
+        }
 
-            var tags = new List<string>() { "коллок", "локал", "книжн", "вульг", "неправ", "mb", "fig", "идиом", "и", "прямое" };
+        static IEnumerable<IEnumerable<string>> NormalizeVerb(IEnumerable<IEnumerable<string>> enumerable)
+        {
+            return enumerable.Select(l =>
+            {
+                var seqVerb = l.First();
 
-            var lines1 = governedByVerb.Select(l => l.Split(new char[] {' ','.','(', ')','/'}, StringSplitOptions.RemoveEmptyEntries)).Where(l => l.Count() != 0);
-            var lines2 = lines1.Select(l => l.Select(x => x).Where(x => !tags.Contains(x) && !x.Equals(word)));
-            var lines3 = lines2.Select(l => l.Select(x => x).Where(x =>
+                string normalForm = "";
+
+                foreach (var i in morphAnalyzer.parse(seqVerb))
+                {
+                    string r = (i.tag).ToString();
+                    if (r.Contains("INFN") || r.Contains("VERB"))
+                    {
+                        normalForm = (i.normal_form).ToString();
+                        break;
+                    }
+                }
+
+                return l.Skip(1).Insert(new[] { normalForm }, 0);
+            });
+        }
+
+        static IEnumerable<IEnumerable<string>> RemoveRepeats(IEnumerable<IEnumerable<string>> enumerable) =>
+                enumerable.Distinct(new SequentialStringComparer());
+
+        public IEnumerable<Verb> GetNormalizedPhrases(string fileName)
+        {
+            var hasPredicates = ReadFromFile(fileName, "Section: Has Predicates");
+            var governedByVerb = ReadFromFile(fileName, "Section: Governed by Verbs");
+
+            var splitingHasPredicates = SplitString(hasPredicates);
+            var splitingGovernedByVerb = SplitString(governedByVerb);
+
+            var withoutTagsHasPredicates = RemoveTags(splitingHasPredicates);
+            var withoutTagsGovernedByVerb = RemoveTags(splitingGovernedByVerb);
+
+            var withoutMainNounHasPredicates = withoutTagsHasPredicates.Select(l => l.Select(x => x).TakeLast(l.Count() - 1)).Take(1);
+            var withoutMainNounGoverenedByVerb = withoutTagsGovernedByVerb.Select(l => l.Select(x => x).Take(l.Count() - 1));
+
+            var normalizedHasPredicates = NormalizeVerb(withoutMainNounHasPredicates);
+            var normalizedGovernedByVerb = NormalizeVerb(withoutMainNounGoverenedByVerb);
+
+            var uniqueHasPredicates = RemoveRepeats(normalizedHasPredicates);
+            var uniqueGovernedByVerb = RemoveRepeats(normalizedGovernedByVerb);
+
+            return uniqueHasPredicates.Backsert(uniqueGovernedByVerb, 0).Select(e =>
+                                                                                new Verb()
+                                                                                {
+                                                                                    InfForm = e.First(),
+                                                                                    Prep = string.Join(" ", e.Skip(1))
+                                                                                })
+                                                                                .ToList();
+        }
+
+        public void FullList(string fileName, Dictionary<string, string> perfPairs)
+        {
+
+
+            var hasPredicates = ReadFromFile(fileName, "Section: Has Predicates");
+            var governedByVerb = ReadFromFile(fileName, "Section: Governed by Verbs");
+
+            var splitingHasPredicates = SplitString(hasPredicates);
+            var splitingGovernedByVerb = SplitString(governedByVerb);
+
+            var withoutTagsHasPredicates = RemoveTags(splitingHasPredicates);
+            var withoutTagsGovernedByVerb = RemoveTags(splitingGovernedByVerb);
+
+            var withoutMainNounHasPredicates = withoutTagsHasPredicates.Select(l => l.Select(x => x.TakeLast(x.Count() - 1).Take(1)));
+            var withoutMainNounGoverenedByVerb = withoutTagsGovernedByVerb.Select(l => l.Select(x => x.Take(x.Count() - 1)));
+
+            var infFormHasPredicates = withoutMainNounHasPredicates.Select(l => l.Select(x => 
+            {
+                string res = "";
+                foreach (var i in morphAnalyzer.parse(x))
+                {
+                    string r = (i.tag).ToString();
+                    if (r.Contains("INFN") || r.Contains("VERB"))
+                        res = (i.normal_form).ToString();
+                }
+                return res;
+            }));
+
+
+           /* var lines3 = lines2.Select(l => l.Select(x => x).Where(x =>
             {
                 foreach (var i in morph.parse(x))
                 {
@@ -59,6 +176,7 @@ namespace normalization
                 }
                 return false;
             }));
+
             var lines4 = lines3.Select(l => l.Select(x => {
                                                                 string res = "";
                                                                 foreach (var i in morph.parse(x))
@@ -71,8 +189,43 @@ namespace normalization
                                                                 return res;
                                                            }).Where(x => !x.Equals("")).Distinct());
 
-            words = lines4.Select(l => l.Select(x => perfPairs.ContainsKey(x) ? perfPairs[x] : x).ToList()).ToList();
+            words = lines4.Select(l => l.Select(x => perfPairs.ContainsKey(x) ? perfPairs[x] : x).ToList()).ToList();*/
             PythonEngine.Shutdown();
         }
+
+        #region Disposing
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    // TODO: освободить управляемое состояние (управляемые объекты)
+                }
+
+                // TODO: освободить неуправляемые ресурсы (неуправляемые объекты) и переопределить метод завершения
+                // TODO: установить значение NULL для больших полей
+
+                PythonEngine.Shutdown();
+
+                disposedValue = true;
+            }
+        }
+         // TODO: переопределить метод завершения, только если "Dispose(bool disposing)" содержит код для освобождения неуправляемых ресурсов
+        ~CrossLex()
+        {
+            // Не изменяйте этот код. Разместите код очистки в методе "Dispose(bool disposing)".
+            Dispose(disposing: false);
+        }
+        public void Dispose()
+        {
+            // Не изменяйте этот код. Разместите код очистки в методе "Dispose(bool disposing)".
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        #endregion
+
     }
 }

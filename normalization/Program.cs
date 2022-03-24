@@ -36,7 +36,8 @@ namespace NetCoreExample
             {
                 var fileName = Regex.Replace(Path.GetFileName(file), ".txt", "", RegexOptions.IgnoreCase);
                 var hasPredicates = crossLex.GetHasPredicates(file);
-                var governedByVerb = crossLex.GetHasPredicates(file);
+                var governedByVerb = crossLex.GetGovernedByVerb(file);
+                var allCombinations = crossLex.GetNormalizedPhrases(file);
 
                 var currentPath = @"..\..\..\..\CrossLex" + @"\" + fileName;
                 var dirInfo = Directory.CreateDirectory(currentPath);
@@ -46,6 +47,9 @@ namespace NetCoreExample
 
                 var csvGovernedByVerb = CsvSerializer.SerializeToCsv(governedByVerb);
                 File.WriteAllText(string.Format("{0}\\{1}{2}{3}", currentPath, fileName,"_УПРАВЛЯЕТСЯ_ГЛАГОЛОМ", ".csv"), csvGovernedByVerb, Encoding.UTF8);
+
+                var csvAllCombinations = CsvSerializer.SerializeToCsv(allCombinations);
+                File.WriteAllText(string.Format("{0}\\{1}{2}", currentPath, fileName, ".csv"), csvAllCombinations, Encoding.UTF8);
             }
             PythonEngine.Shutdown();
         }

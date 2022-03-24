@@ -65,24 +65,21 @@ namespace normalization
             morphAnalyzer = importerPyMorphy2.MorphAnalyzer();
         }
 
-        static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l)
-        {
-            return l.Select(x => x.Split(new char[] { ' ', '.', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries))
-                        .Where(x => x.Count() != 0);
-        }
+        static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l) =>
+                l.Select(x => x.Split(new char[] { ' ', '.', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries))
+                               .Where(x => x.Count() != 0);
+        
 
-        static IEnumerable<string> ReadFromFile(string fileName, string crossLexSection)
-        {
-            return File.ReadLines(fileName, Encoding.UTF8)
+        static IEnumerable<string> ReadFromFile(string fileName, string crossLexSection) =>
+                                    File.ReadLines(fileName, Encoding.UTF8)
                                     .SkipWhile(l => !l.Contains(crossLexSection))
                                     .Skip(2)
                                     .TakeWhile(l => l.Count() != 0);
-        }
+        
 
-        static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l)
-        {
-            return l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
-        }
+        static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l) =>
+            l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
+        
 
         static IEnumerable<IEnumerable<string>> NormalizeVerb(IEnumerable<IEnumerable<string>> enumerable)
         {
@@ -103,18 +100,31 @@ namespace normalization
                 }
 
                 return l.Skip(1).Insert(new[] { normalForm }, 0);
-            });
+            }).Where(l => !l.First().Equals(""));
         }
 
         static IEnumerable<IEnumerable<string>> RemoveRepeats(IEnumerable<IEnumerable<string>> enumerable) =>
                 enumerable.Distinct(new SequentialStringComparer());
 
+        static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
+                        enumerable.Select(l => l.Select(x => x).Where(x =>
+                        {
+                            foreach (var i in morphAnalyzer.parse(x))
+                            {
+                                string r = (i.normal_form).ToString();
+                                if (r.Equals(noun)) return false;
+                            }
+                            return true;
+                        }));
+        
+
         public IEnumerable<Verb> GetHasPredicates(string fileName)
         {
+            var noun = Regex.Replace(Path.GetFileName(fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
             var hasPredicates = ReadFromFile(fileName, "Section: Has Predicates");
             var splitingHasPredicates = SplitString(hasPredicates);
             var withoutTagsHasPredicates = RemoveTags(splitingHasPredicates);
-            var withoutMainNounHasPredicates = withoutTagsHasPredicates.Select(l => l.Select(x => x).TakeLast(l.Count() - 1).Take(1));
+            var withoutMainNounHasPredicates = RemoveMainNoun(withoutTagsHasPredicates, noun).Select(l => l.Take(1));
             var normalizedHasPredicates = NormalizeVerb(withoutMainNounHasPredicates);
             var uniqueHasPredicates = RemoveRepeats(normalizedHasPredicates);
             return uniqueHasPredicates.Select(e => new Verb()
@@ -127,10 +137,11 @@ namespace normalization
 
         public IEnumerable<Verb> GetGovernedByVerb(string fileName)
         {
+            var noun = Regex.Replace(Path.GetFileName(fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
             var governedByVerb = ReadFromFile(fileName, "Section: Governed by Verbs");
             var splitingGovernedByVerb = SplitString(governedByVerb);
             var withoutTagsGovernedByVerb = RemoveTags(splitingGovernedByVerb);
-            var withoutMainNounGoverenedByVerb = withoutTagsGovernedByVerb.Select(l => l.Select(x => x).Take(l.Count() - 1));
+            var withoutMainNounGoverenedByVerb = RemoveMainNoun(withoutTagsGovernedByVerb, noun);
             var normalizedGovernedByVerb = NormalizeVerb(withoutMainNounGoverenedByVerb);
             var uniqueGovernedByVerb = RemoveRepeats(normalizedGovernedByVerb);
             return uniqueGovernedByVerb.Select(e => new Verb()
@@ -143,6 +154,8 @@ namespace normalization
 
         public IEnumerable<Verb> GetNormalizedPhrases(string fileName)
         {
+            var noun = Regex.Replace(Path.GetFileName(fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
+
             var hasPredicates = ReadFromFile(fileName, "Section: Has Predicates");
             var governedByVerb = ReadFromFile(fileName, "Section: Governed by Verbs");
 
@@ -152,8 +165,8 @@ namespace normalization
             var withoutTagsHasPredicates = RemoveTags(splitingHasPredicates);
             var withoutTagsGovernedByVerb = RemoveTags(splitingGovernedByVerb);
 
-            var withoutMainNounHasPredicates = withoutTagsHasPredicates.Select(l => l.Select(x => x).TakeLast(l.Count() - 1)).Take(1);
-            var withoutMainNounGoverenedByVerb = withoutTagsGovernedByVerb.Select(l => l.Select(x => x).Take(l.Count() - 1));
+            var withoutMainNounHasPredicates = RemoveMainNoun(withoutTagsHasPredicates, noun).Select(l => l.Take(1));
+            var withoutMainNounGoverenedByVerb = RemoveMainNoun(withoutTagsGovernedByVerb, noun);
 
             var normalizedHasPredicates = NormalizeVerb(withoutMainNounHasPredicates);
             var normalizedGovernedByVerb = NormalizeVerb(withoutMainNounGoverenedByVerb);
@@ -161,13 +174,14 @@ namespace normalization
             var uniqueHasPredicates = RemoveRepeats(normalizedHasPredicates);
             var uniqueGovernedByVerb = RemoveRepeats(normalizedGovernedByVerb);
 
-            return uniqueHasPredicates.Backsert(uniqueGovernedByVerb, 0).Select(e =>
-                                                                                new Verb()
-                                                                                {
-                                                                                    InfForm = e.First(),
-                                                                                    Prep = string.Join(" ", e.Skip(1))
-                                                                                })
-                                                                                .ToList();
+            var resultList = RemoveRepeats(uniqueHasPredicates.Backsert(uniqueGovernedByVerb, 0)).OrderBy(l => l.FirstOrDefault());
+
+            return resultList.Select(l => new Verb()
+                                     {
+                                         InfForm = l.First(),
+                                         Prep = string.Join(" ", l.Skip(1))
+                                     }).ToList();
+            
         }
 
 

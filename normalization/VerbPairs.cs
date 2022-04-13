@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace normalization
 {
-    public class Verb
+    public class VerbPairs
     {
-        public string InfForm { get; set; }
-        public string Prep { get; set; }
+        public string PerfectForm { get; set; }
+        public string InitialForm { get; set; }
     }
 }

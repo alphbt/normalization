@@ -16,80 +16,34 @@ namespace normalization
 {
     public class CrossLex : IDisposable
     {
-        static int MultiHash(IEnumerable<object> items)
-        {
-            int h = 0;
-
-            foreach (object item in items)
-            {
-                h = Combine(h, item != null ? item.GetHashCode() : 0);
-            }
-
-            return h;
-        }
-        static int Combine(int x, int y)
-        {
-            unchecked
-            {
-                // This isn't a particularly strong way to combine hashes, but it's
-                // cheap, respects ordering, and should work for the majority of cases.
-                return (x << 5) + 3 + x ^ y;
-            }
-        }
-        protected internal class SequentialStringComparer : IEqualityComparer<IEnumerable<string>>
-        {
-            public bool Equals(IEnumerable<string>? x, IEnumerable<string>? y) => Enumerable.SequenceEqual(x!, y!);
-            public int GetHashCode(IEnumerable<string> obj) => MultiHash(obj);
-        }
-
+        private string fileName;
         static private List<string> tags = new List<string>() { "коллок", "локал", "книжн", "вульг", "неправ", "mb", "fig", "идиом", "и", "прямое", "не" };
-        private bool disposedValue;
 
-        static private dynamic importerPyMorphy2;
-        static private dynamic morphAnalyzer;
-
-        public CrossLex()
+        public CrossLex(string fileName)
         {
-            Installer.InstallPath = Path.GetFullPath(".");
-
-            Installer.SetupPython().WaitAndUnwrapException();
-            PythonEngine.Initialize();
-
-            if (!Installer.IsModuleInstalled("pymorphy2"))
-            {
-                Installer.TryInstallPip();
-                Installer.PipInstallModule("pymorphy2");
-            }
-
-            importerPyMorphy2 = Py.Import("pymorphy2");
-            morphAnalyzer = importerPyMorphy2.MorphAnalyzer();
+            this.fileName = fileName;
         }
 
         static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l) =>
                 l.Select(x => x.Split(new char[] { ' ', '.', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries))
                                .Where(x => x.Count() != 0);
-        
 
-        static IEnumerable<string> ReadFromFile(string fileName, string crossLexSection) =>
-                                    File.ReadLines(fileName, Encoding.UTF8)
+        private IEnumerable<string> ReadFromFile(string crossLexSection) =>
+                                    File.ReadLines(this.fileName, Encoding.UTF8)
                                     .SkipWhile(l => !l.Contains(crossLexSection))
                                     .Skip(2)
                                     .TakeWhile(l => l.Count() != 0);
-        
 
         static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l) =>
             l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
-        
 
-        static IEnumerable<IEnumerable<string>> NormalizeVerb(IEnumerable<IEnumerable<string>> enumerable)
+        static IEnumerable<string> GetInfVerbForm(IEnumerable<string> enumerable)
         {
             return enumerable.Select(l =>
             {
-                var seqVerb = l.First();
-
                 string normalForm = "";
 
-                foreach (var i in morphAnalyzer.parse(seqVerb))
+                foreach (var i in MorphAnalyzer.Instance.Analyzer.parse(l))
                 {
                     string r = (i.tag).ToString();
                     if (r.Contains("INFN") || r.Contains("VERB"))
@@ -98,128 +52,75 @@ namespace normalization
                         break;
                     }
                 }
-
-                return l.Skip(1).Insert(new[] { normalForm }, 0);
-            }).Where(l => !l.First().Equals(""));
+                return normalForm.Equals("") ? l : normalForm;
+            });
         }
-
-        static IEnumerable<IEnumerable<string>> RemoveRepeats(IEnumerable<IEnumerable<string>> enumerable) =>
-                enumerable.Distinct(new SequentialStringComparer());
 
         static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
                         enumerable.Select(l => l.Select(x => x).Where(x =>
                         {
-                            foreach (var i in morphAnalyzer.parse(x))
+                            foreach (var i in MorphAnalyzer.Instance.Analyzer.parse(x))
                             {
                                 string r = (i.normal_form).ToString();
                                 if (r.Equals(noun)) return false;
                             }
                             return true;
                         }));
-        
 
-        public IEnumerable<Verb> GetHasPredicates(string fileName)
+        private IEnumerable<IEnumerable<string>> GetCombinationsBySection(string section)
         {
-            var noun = Regex.Replace(Path.GetFileName(fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
-            var hasPredicates = ReadFromFile(fileName, "Section: Has Predicates");
-            var splitingHasPredicates = SplitString(hasPredicates);
-            var withoutTagsHasPredicates = RemoveTags(splitingHasPredicates);
-            var withoutMainNounHasPredicates = RemoveMainNoun(withoutTagsHasPredicates, noun).Select(l => l.Take(1));
-            var normalizedHasPredicates = NormalizeVerb(withoutMainNounHasPredicates);
-            var uniqueHasPredicates = RemoveRepeats(normalizedHasPredicates);
-            return uniqueHasPredicates.Select(e => new Verb()
-                                             {
-                                                 InfForm = e.First(),
-                                                 Prep = string.Join(" ", e.Skip(1))
-                                             })
-                                             .ToList();
+            var noun = Regex.Replace(Path.GetFileName(this.fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
+            var combintaions = ReadFromFile(section);
+            var splitingCombinations = SplitString(combintaions);
+            var withoutTagsCombinations = RemoveTags(splitingCombinations);
+            var withoutMainNounCombinations = RemoveMainNoun(withoutTagsCombinations, noun);
+            return EnumerableExtensions.If(withoutMainNounCombinations, x => x.Select(l => l.Take(1)), section == "Section: Has Predicates");
         }
 
-        public IEnumerable<Verb> GetGovernedByVerb(string fileName)
+        private IEnumerable<IEnumerable<string>> GetCombinations() =>
+            GetCombinationsBySection("Section: Has Predicates")
+            .Backsert(GetCombinationsBySection("Section: Governed by Verbs"), 0);
+
+        public IDictionary<IEnumerable<string>, HashSet<IEnumerable<string>>> GetDictionaryOfInitialForms()
         {
-            var noun = Regex.Replace(Path.GetFileName(fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
-            var governedByVerb = ReadFromFile(fileName, "Section: Governed by Verbs");
-            var splitingGovernedByVerb = SplitString(governedByVerb);
-            var withoutTagsGovernedByVerb = RemoveTags(splitingGovernedByVerb);
-            var withoutMainNounGoverenedByVerb = RemoveMainNoun(withoutTagsGovernedByVerb, noun);
-            var normalizedGovernedByVerb = NormalizeVerb(withoutMainNounGoverenedByVerb);
-            var uniqueGovernedByVerb = RemoveRepeats(normalizedGovernedByVerb);
-            return uniqueGovernedByVerb.Select(e => new Verb()
-                                               {
-                                                   InfForm = e.First(),
-                                                   Prep = string.Join(" ", e.Skip(1))
-                                               })
-                                               .ToList();
-        }
-
-        public IEnumerable<Verb> GetNormalizedPhrases(string fileName)
-        {
-            var noun = Regex.Replace(Path.GetFileName(fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
-
-            var hasPredicates = ReadFromFile(fileName, "Section: Has Predicates");
-            var governedByVerb = ReadFromFile(fileName, "Section: Governed by Verbs");
-
-            var splitingHasPredicates = SplitString(hasPredicates);
-            var splitingGovernedByVerb = SplitString(governedByVerb);
-
-            var withoutTagsHasPredicates = RemoveTags(splitingHasPredicates);
-            var withoutTagsGovernedByVerb = RemoveTags(splitingGovernedByVerb);
-
-            var withoutMainNounHasPredicates = RemoveMainNoun(withoutTagsHasPredicates, noun).Select(l => l.Take(1));
-            var withoutMainNounGoverenedByVerb = RemoveMainNoun(withoutTagsGovernedByVerb, noun);
-
-            var normalizedHasPredicates = NormalizeVerb(withoutMainNounHasPredicates);
-            var normalizedGovernedByVerb = NormalizeVerb(withoutMainNounGoverenedByVerb);
-
-            var uniqueHasPredicates = RemoveRepeats(normalizedHasPredicates);
-            var uniqueGovernedByVerb = RemoveRepeats(normalizedGovernedByVerb);
-
-            var resultList = RemoveRepeats(uniqueHasPredicates.Backsert(uniqueGovernedByVerb, 0)).OrderBy(l => l.FirstOrDefault());
-
-            return resultList.Select(l => new Verb()
-                                     {
-                                         InfForm = l.First(),
-                                         Prep = string.Join(" ", l.Skip(1))
-                                     }).ToList();
-            
-        }
-
-
-        #region Disposing
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
+            var infForms = new Dictionary<IEnumerable<string>, HashSet<IEnumerable<string>>>(new SequentialStringComparer());
+            var combinations = GetCombinations();
+            foreach (var comb in combinations)
             {
-                if (disposing)
+                var infVerbForm = GetInfVerbForm(comb);
+                if (!infForms.ContainsKey(infVerbForm))
                 {
-                    // TODO: освободить управляемое состояние (управляемые объекты)
-                    PythonEngine.Shutdown();
+                    infForms.Add(infVerbForm, new HashSet<IEnumerable<string>>(new SequentialStringComparer()));
                 }
-
-                // TODO: освободить неуправляемые ресурсы (неуправляемые объекты) и переопределить метод завершения
-                // TODO: установить значение NULL для больших полей
-
-                //PythonEngine.Shutdown();
-
-                disposedValue = true;
+                infForms[infVerbForm].Add(comb);
             }
+            return infForms;
         }
-         // TODO: переопределить метод завершения, только если "Dispose(bool disposing)" содержит код для освобождения неуправляемых ресурсов
-        ~CrossLex()
+
+        public IDictionary<IEnumerable<string>, HashSet<IEnumerable<string>>> MixVerbs(IDictionary<string, string> perfectVerbsDict)
         {
-            
-            // Не изменяйте этот код. Разместите код очистки в методе "Dispose(bool disposing)".
-            Dispose(disposing: false);
+            var dict = GetDictionaryOfInitialForms();
+            var normalizedForms = new Dictionary<IEnumerable<string>, HashSet<IEnumerable<string>>>(new SequentialStringComparer());
+            var initialVerbsForm = dict.Keys;
+
+            foreach(var verb in initialVerbsForm)
+            {
+                var normalizeVerb = verb.ImperfectIntransitiveRule()
+                    .PerfectIntransiveRule(perfectVerbsDict).PerfectIntransiveWithoutEndRule(perfectVerbsDict)
+                    .PerfectTransitiveRule(perfectVerbsDict).ToList();
+
+                if(!normalizedForms.ContainsKey(normalizeVerb))
+                {
+                    normalizedForms.Add(normalizeVerb, new HashSet<IEnumerable<string>>(new SequentialStringComparer()));
+                }
+                normalizedForms[normalizeVerb].Add(verb.ToList());
+            }
+            return normalizedForms;
         }
+
         public void Dispose()
         {
-            // Не изменяйте этот код. Разместите код очистки в методе "Dispose(bool disposing)".
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
+            MorphAnalyzer.Instance.Dispose();
         }
-
-        #endregion
-
     }
 }

@@ -37,23 +37,13 @@ namespace normalization
         static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l) =>
             l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
 
-        static IEnumerable<string> GetInfVerbForm(IEnumerable<string> enumerable)
+        static VerbInfo GetInitialVerbForm(IEnumerable<string> enumerable)
         {
-            return enumerable.Select(l =>
+            return new VerbInfo()
             {
-                string normalForm = "";
-
-                foreach (var i in MorphAnalyzer.Instance.Analyzer.parse(l))
-                {
-                    string r = (i.tag).ToString();
-                    if (r.Contains("INFN") || r.Contains("VERB"))
-                    {
-                        normalForm = (i.normal_form).ToString();
-                        break;
-                    }
-                }
-                return normalForm.Equals("") ? l : normalForm;
-            });
+                Verb = enumerable.ElementAt(0),
+                Prep = enumerable.Skip(1).Count() == 0 ? "" : enumerable.Skip(1).Aggregate((x, y) => x + " " + y)
+            };            
         }
 
         static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
@@ -81,40 +71,32 @@ namespace normalization
             GetCombinationsBySection("Section: Has Predicates")
             .Backsert(GetCombinationsBySection("Section: Governed by Verbs"), 0);
 
-        public IDictionary<IEnumerable<string>, HashSet<IEnumerable<string>>> GetDictionaryOfInitialForms()
+        public IDictionary<VerbInfo, HashSet<IEnumerable<string>>> GetDictionaryOfInitialForms()
         {
-            var infForms = new Dictionary<IEnumerable<string>, HashSet<IEnumerable<string>>>(new SequentialStringComparer());
+            var initialVerbsDict = new Dictionary<VerbInfo, HashSet<IEnumerable<string>>>(new VerbsComparer());
             var combinations = GetCombinations();
+
             foreach (var comb in combinations)
             {
-                var infVerbForm = GetInfVerbForm(comb);
-                if (!infForms.ContainsKey(infVerbForm))
+                var initialVerb = GetInitialVerbForm(comb);
+                if (!initialVerbsDict.ContainsKey(initialVerb))
                 {
-                    infForms.Add(infVerbForm, new HashSet<IEnumerable<string>>(new SequentialStringComparer()));
+                    initialVerbsDict.Add(initialVerb, new HashSet<IEnumerable<string>>(new SequentialStringComparer()));
                 }
-                infForms[infVerbForm].Add(comb);
+                initialVerbsDict[initialVerb].Add(comb);
             }
-            return infForms;
+
+            return initialVerbsDict;
         }
 
-        public IDictionary<IEnumerable<string>, HashSet<IEnumerable<string>>> MixVerbs(IDictionary<string, string> perfectVerbsDict)
+        public Dictionary<VerbInfo, HashSet<VerbInfo>> MixVerbs(IDictionary<string, string> perfectVerbsDict)
         {
-            var dict = GetDictionaryOfInitialForms();
-            var normalizedForms = new Dictionary<IEnumerable<string>, HashSet<IEnumerable<string>>>(new SequentialStringComparer());
-            var initialVerbsForm = dict.Keys;
+            var initialVerbsFormDict = GetDictionaryOfInitialForms();           
+            var initialVerbsForm = initialVerbsFormDict.Keys;
 
-            foreach(var verb in initialVerbsForm)
-            {
-                var normalizeVerb = verb.ImperfectIntransitiveRule()
-                    .PerfectIntransiveRule(perfectVerbsDict).PerfectIntransiveWithoutEndRule(perfectVerbsDict)
-                    .PerfectTransitiveRule(perfectVerbsDict).ToList();
+            var normalizedForms = new Dictionary<VerbInfo, HashSet<VerbInfo>>(new VerbsComparer());
+            normalizedForms = initialVerbsForm.CompressVerb<VerbInfo>(perfectVerbsDict);
 
-                if(!normalizedForms.ContainsKey(normalizeVerb))
-                {
-                    normalizedForms.Add(normalizeVerb, new HashSet<IEnumerable<string>>(new SequentialStringComparer()));
-                }
-                normalizedForms[normalizeVerb].Add(verb.ToList());
-            }
             return normalizedForms;
         }
 

@@ -11,9 +11,9 @@ namespace normalization
 {
     public static class RuleExtensions
     {
-        private static dynamic? GetAnalyzerResult(IEnumerable<string> items)
+        private static dynamic? GetAnalyzerResult<T>(this T items) where T: VerbInfo
         {
-            var verb = items.ElementAt(0);
+            var verb = items.Verb;
             return MorphAnalyzer.Instance.Analyzer.parse(verb);
         }
 
@@ -22,43 +22,59 @@ namespace normalization
             return tagNames.All(x => tags.Contains(x));
         }
 
-        public static IEnumerable<string> PerfectTransitiveRule(this IEnumerable<string> items, IDictionary<string, string> perfectVerbsDict)
+        public static T PerfectTransitiveRule<T>(this T items, IDictionary<string, string> perfectVerbsDict) where T : VerbInfo, new()
         {
             var analyzerResult = GetAnalyzerResult(items);
-            var verb = items.ElementAt(0);
+            var verb = items.Verb;
 
             foreach(var parsedVerb in analyzerResult!)
             {
                 var tag = (parsedVerb.tag).ToString();
                 if(IsMatching(tag, "perf", "tran") && perfectVerbsDict.ContainsKey(verb))
                 {
-                    return (new[] { perfectVerbsDict[verb] }).Backsert(items.Skip(1), 0);  
+                    var res = new T();
+                    var prop = res.GetType().GetProperties();
+                    foreach(var property in prop)
+                    {
+                        property.SetValue(res, items.GetType().GetProperty(property.Name).GetValue(items));
+                    }
+                    res.Verb = perfectVerbsDict[verb];
+
+                    return res;
                 }
             }
             return items;
         }
 
-        public static IEnumerable<string> PerfectIntransiveWithoutEndRule(this IEnumerable<string> items, IDictionary<string, string> perfVerbsDict)
+        public static T PerfectIntransiveWithoutEndRule<T>(this T items, IDictionary<string, string> perfVerbsDict) where T: VerbInfo, new()
         {
             var analyzerResult = GetAnalyzerResult(items);
-            var verb = items.ElementAt(0);
+            var verb = items.Verb;
             var rgx = new Regex(@"\w*(сь|ся)$");
 
             foreach (var parsedVerb in analyzerResult!)
             {
                 var tag = (parsedVerb.tag).ToString();
-                if(IsMatching(tag, "perf", "intr") && !rgx.IsMatch(items.ElementAt(0)) && perfVerbsDict.ContainsKey(verb))
+                if(IsMatching(tag, "perf", "intr") && !rgx.IsMatch(verb) && perfVerbsDict.ContainsKey(verb))
                 {
-                    return (new[] { perfVerbsDict[verb] }).Backsert(items.Skip(1), 0);  
+                    var res = new T();
+                    var prop = res.GetType().GetProperties();
+                    foreach (var property in prop)
+                    {
+                        property.SetValue(res, items.GetType().GetProperty(property.Name).GetValue(items));
+                    }
+                    res.Verb = perfVerbsDict[verb];
+
+                    return res;
                 }
             }
             return items;
         }
 
-        public static IEnumerable<string>  PerfectIntransiveRule(this IEnumerable<string> items, IDictionary<string, string> perfVerbsDict)
+        public static T  PerfectIntransiveRule<T>(this T items, IDictionary<string, string> perfVerbsDict) where T: VerbInfo, new()
         {
             var analyzerResult = GetAnalyzerResult(items);
-            var verb = items.ElementAt(0);
+            var verb = items.Verb;
             var rgx = new Regex(@"(сь|ся)$");
 
             foreach (var parsedVerb in analyzerResult!)
@@ -67,19 +83,27 @@ namespace normalization
                 if (IsMatching(tag, "perf", "intr") && rgx.IsMatch(verb))
                 {
                     verb = rgx.Replace(verb, "");
-                    if(perfVerbsDict.ContainsKey(verb))
-                        return (new[] { perfVerbsDict[verb] }).Backsert(items.Skip(1), 0);
-                    else 
-                        return (new[] {verb}).Backsert(items.Skip(1), 0);
+                    var res = new T();
+                    var prop = res.GetType().GetProperties();
+                    foreach (var property in prop)
+                    {
+                        property.SetValue(res, items.GetType().GetProperty(property.Name).GetValue(items));
+                    }
+                    res.Verb = verb;
+
+                    if (perfVerbsDict.ContainsKey(res.Verb))
+                        res.Verb = perfVerbsDict[res.Verb];
+
+                    return res;
                 }
             }
             return items;
         }
 
-        public static IEnumerable<string> ImperfectIntransitiveRule(this IEnumerable<string> items)
+        public static T ImperfectIntransitiveRule<T>(this T items) where T: VerbInfo, new()
         {
             var analyzerResult = GetAnalyzerResult(items);
-            var verb = items.ElementAt(0);
+            var verb = items.Verb;
             var rgx = new Regex(@"(сь|ся)$");
 
             foreach (var parsedVerb in analyzerResult!)
@@ -87,7 +111,16 @@ namespace normalization
                 var tag = (parsedVerb.tag).ToString();
                 if (IsMatching(tag, "impf", "intr") && rgx.IsMatch(verb))
                 {
-                    return (new[] { rgx.Replace(verb, "") }).Backsert(items.Skip(1), 0);
+                    verb = rgx.Replace(verb, "");
+                    var res = new T();
+                    var prop = res.GetType().GetProperties();
+                    foreach (var property in prop)
+                    {
+                        property.SetValue(res, items.GetType().GetProperty(property.Name).GetValue(items));
+                    }
+                    res.Verb = verb;
+
+                    return res;
                 }
             }
             return items;

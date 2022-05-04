@@ -13,11 +13,9 @@ namespace normalization
         {
             int h = 0;
 
-            foreach (var property in items.GetType().GetProperties())
-            {
-                h = Combine(h, property != null ? property.GetHashCode() : 0);
-            }
-
+            h = Combine(h, items.Verb != null ? items.Verb.GetHashCode()  : 0);
+            //h = Combine(h, items.Verb != null ? items.Prep.GetHashCode() : 0);
+            
             return h;
         }
         private static int Combine(int x, int y)
@@ -32,18 +30,7 @@ namespace normalization
             if (x == null && y == null) return false;
             else
             {
-                var result = true;
-                foreach(var property in x.GetType().GetProperties())
-                {
-                    var xValue = property.GetValue(x);
-                    var yValue = property.GetValue(y);
-                    if (!xValue.Equals(yValue)) 
-                    { 
-                        result = false; 
-                        continue; 
-                    }
-                }
-                return result;
+                return x.Verb == y.Verb; //&& x.Prep == y.Prep;
             }
 
         }

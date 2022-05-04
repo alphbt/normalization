@@ -49,8 +49,20 @@ namespace normalization
         }
 
         private static string DeleteNumbers(string str) => Regex.Replace(str, "[0-9]", "", RegexOptions.IgnoreCase);
-        
-        private static string DeleteTranistivity(string str) => Regex.Replace(str, "(сь|ся)", "", RegexOptions.IgnoreCase);
+
+        private static string DeleteTranistivity(string str)
+        {
+            var verb = Regex.Replace(str, "(сь|ся)", "", RegexOptions.IgnoreCase);
+            var analyzer = MorphAnalyzer.Instance.Analyzer;
+            var parsed = (analyzer.parse(verb)[0]);
+            var tag = (parsed.tag).ToString();
+            if(tag.Contains("intr"))
+            {
+                return str;
+            }
+            return verb;
+            
+        }
 
         private static IEnumerable<IEnumerable<string>> DeleteEmptyEntries(IEnumerable<string> phrases) => 
             phrases.Select(x => x.Split(' ', StringSplitOptions.RemoveEmptyEntries));

@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace normalization
 {
-    public class VerbsComparer : IEqualityComparer<VerbInfo>
+    public class VerbsComparer: IEqualityComparer<VerbInfo>
     {
         private static int MultiHash(VerbInfo items)
         {

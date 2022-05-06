@@ -14,17 +14,17 @@ using static MoreLinq.Extensions.BacksertExtension;
 
 namespace normalization
 {
-    public class CrossLex : IDisposable
+    public class CrossLexica : IDisposable
     {
         private string fileName;
         static private List<string> tags = new List<string>() { "коллок", "локал", "книжн", "вульг", "неправ", "mb", "fig", "идиом", "и", "прямое", "не" };
-
-        public CrossLex(string fileName)
+        
+        public void Load(string fileName)
         {
             this.fileName = fileName;
         }
 
-        static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l) =>
+        private static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l) =>
                 l.Select(x => x.Split(new char[] { ' ', '.', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries))
                                .Where(x => x.Count() != 0);
 
@@ -34,10 +34,10 @@ namespace normalization
                                     .Skip(2)
                                     .TakeWhile(l => l.Count() != 0);
 
-        static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l) =>
+        private static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l) =>
             l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
 
-        static VerbInfo GetInitialVerbForm(IEnumerable<string> enumerable)
+        private static VerbInfo GetInitialVerbForm(IEnumerable<string> enumerable)
         {
             return new VerbInfo()
             {
@@ -46,7 +46,7 @@ namespace normalization
             };            
         }
 
-        static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
+        private static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
                         enumerable.Select(l => l.Select(x => x).Where(x =>
                         {
                             foreach (var i in MorphAnalyzer.Instance.Analyzer.parse(x))
@@ -61,9 +61,11 @@ namespace normalization
         {
             var noun = Regex.Replace(Path.GetFileName(this.fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
             var combintaions = ReadFromFile(section);
+
             var splitingCombinations = SplitString(combintaions);
             var withoutTagsCombinations = RemoveTags(splitingCombinations);
             var withoutMainNounCombinations = RemoveMainNoun(withoutTagsCombinations, noun);
+
             return EnumerableExtensions.If(withoutMainNounCombinations, x => x.Select(l => l.Take(1)), section == "Section: Has Predicates");
         }
 
@@ -71,7 +73,7 @@ namespace normalization
             GetCombinationsBySection("Section: Has Predicates")
             .Backsert(GetCombinationsBySection("Section: Governed by Verbs"), 0);
 
-        public IDictionary<VerbInfo, HashSet<IEnumerable<string>>> GetDictionaryOfInitialForms()
+        public Dictionary<VerbInfo, HashSet<IEnumerable<string>>> GetDictionaryOfInitialForms()
         {
             var initialVerbsDict = new Dictionary<VerbInfo, HashSet<IEnumerable<string>>>(new VerbsComparer());
             var combinations = GetCombinations();
@@ -89,7 +91,7 @@ namespace normalization
             return initialVerbsDict;
         }
 
-        public Dictionary<VerbInfo, HashSet<VerbInfo>> MixVerbs(IDictionary<string, string> perfectVerbsDict)
+        public Dictionary<VerbInfo, HashSet<VerbInfo>> NormalizeVerbs(Dictionary<string, string> perfectVerbsDict)
         {
             var initialVerbsFormDict = GetDictionaryOfInitialForms();           
             var initialVerbsForm = initialVerbsFormDict.Keys;

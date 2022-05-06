@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.1.32210.238
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.32126.315
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "normalization", "normalization\normalization.csproj", "{75A635DC-6662-4231-A140-18C9066F1A7A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Normalization", "normalization\Normalization.csproj", "{75A635DC-6662-4231-A140-18C9066F1A7A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ConnectionToCoSyCo", "..\..\ConnectionToCoSyCo\ConnectionToCoSyCo\ConnectionToCoSyCo.csproj", "{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,14 @@ Global
 		{75A635DC-6662-4231-A140-18C9066F1A7A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{75A635DC-6662-4231-A140-18C9066F1A7A}.Release|x64.ActiveCfg = Release|x64
 		{75A635DC-6662-4231-A140-18C9066F1A7A}.Release|x64.Build.0 = Release|x64
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Debug|x64.ActiveCfg = Debug|x64
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Debug|x64.Build.0 = Debug|x64
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Release|x64.ActiveCfg = Release|x64
+		{1A53005D-E31E-45F1-9A0C-A6EDAE32B500}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

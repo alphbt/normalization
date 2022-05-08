@@ -21,8 +21,9 @@ namespace normalization
         public void Load(string token)
         {
             this.token = token;
+            GetVerbWithPreposition();
+            GetVerbWithoutPreposition();
         }
-
         private void GetVerbWithPreposition()
         {
             verbWithPreposition.Clear();
@@ -51,13 +52,13 @@ namespace normalization
                     freqNoun = n.Sum(c => c.noun.freq),
                 })
                 .OrderByDescending(n => n.freqComb)
-                .Take(1000)
+                //.Take(1000)
                 .ToList();
 
             verbWithPreposition =  verbsWithPrepositionTable.Select(e => new VerbWithFrequencyInfo()
             {
-                Verb = e.verb,
-                Prep = e.prep,
+                Verb = e.verb.ToLower(),
+                Prep = e.prep.ToLower(),
                 NounFrequency = e.freqNoun,
                 VerbFrequency = e.freqVerb,
                 CombinationFrequency = e.freqComb
@@ -91,13 +92,13 @@ namespace normalization
                     freqNoun = n.Sum(c => c.noun.freq),
                 })
                 .OrderByDescending(n => n.freqComb)
-                .Take(1000)
+                //.Take(1000)
                 .ToList();
 
             verbWithoutPreposition = verbsWithoutPrepositionTable.Select(e => new VerbWithFrequencyInfo()
             {
-                Verb = e.verb,
-                Prep = e.prep,
+                Verb = e.verb.ToLower(),
+                Prep = e.prep.ToLower(),
                 NounFrequency = e.freqNoun,
                 VerbFrequency = e.freqVerb,
                 CombinationFrequency = e.freqComb
@@ -105,33 +106,21 @@ namespace normalization
         }
         private IEnumerable<VerbWithFrequencyInfo> GetCoSyCoCollection()
         {
-            GetVerbWithPreposition();
-            GetVerbWithoutPreposition();
             return verbWithPreposition.Backsert(verbWithoutPreposition, 0);
         }
-
         public void WriteVerbsWithPreposotionToCsv(string path, string suffix ="")
         {
-            WriteCollectionToCsvFile(verbWithPreposition, path, suffix);
+            verbWithPreposition.WriteToCsv(path, this.token.ToUpper(), suffix);
         }
-
         public void WriteVerbsWithoutPreposotionToCsv(string path, string suffix = "")
         {
-            WriteCollectionToCsvFile(verbWithoutPreposition, path, suffix);
+            verbWithoutPreposition.WriteToCsv(path, this.token.ToUpper(), suffix);
         }
-
         public void WriteVerbsCollectionToCsv(string path, string suffix = "")
         {
-            WriteCollectionToCsvFile(GetCoSyCoCollection(), path, suffix);
+            GetCoSyCoCollection().WriteToCsv(path, this.token.ToUpper(), suffix);
         }
-
-        private void WriteCollectionToCsvFile(IEnumerable<VerbWithFrequencyInfo> enumerable, string path, string suffix = "")
-        {
-            var csvFile = CsvSerializer.SerializeToCsv(enumerable);
-            File.WriteAllText(string.Format("{0}\\{1}{2}{3}", path, this.token.ToUpper(), suffix, ".csv"), csvFile, Encoding.UTF8);
-        }
-
-        public IDictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> NormalizeVerbs(IDictionary<string, string> perfectVerbsDict)
+        public Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> NormalizeVerbs(IDictionary<string, string> perfectVerbsDict)
         {
             var initialVerbsForm = GetCoSyCoCollection();
 

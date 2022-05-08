@@ -13,7 +13,6 @@ namespace normalization
     public class InitialPerfectVerbs: IDisposable
     {
         private string fileName;
-
         public InitialPerfectVerbs(string fileName)
         {
             this.fileName = fileName;

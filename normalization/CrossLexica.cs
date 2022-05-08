@@ -23,29 +23,40 @@ namespace normalization
         {
             this.fileName = fileName;
         }
-
         private static IEnumerable<IEnumerable<string>> SplitString(IEnumerable<string> l) =>
                 l.Select(x => x.Split(new char[] { ' ', '.', '(', ')', '/' }, StringSplitOptions.RemoveEmptyEntries))
                                .Where(x => x.Count() != 0);
-
         private IEnumerable<string> ReadFromFile(string crossLexSection) =>
                                     File.ReadLines(this.fileName, Encoding.UTF8)
                                     .SkipWhile(l => !l.Contains(crossLexSection))
                                     .Skip(2)
                                     .TakeWhile(l => l.Count() != 0);
-
         private static IEnumerable<IEnumerable<string>> RemoveTags(IEnumerable<IEnumerable<string>> l) =>
             l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
-
         private static VerbInfo GetInitialVerbForm(IEnumerable<string> enumerable)
         {
+            var initialCombination = enumerable.Select(x =>
+            {
+               var initialForm = "";
+               foreach (var parsedStr in MorphAnalyzer.Instance.Analyzer.parse(x))
+               {
+                   string tag = (parsedStr.tag).ToString();
+
+                   if (tag.Contains("INFN") || tag.Contains("VERB"))
+                   {
+                       initialForm = (parsedStr.normal_form).ToString();
+                       break;
+                   }
+               }
+               return initialForm.Equals("") ? x : initialForm;
+            });
+          
             return new VerbInfo()
             {
-                Verb = enumerable.ElementAt(0),
-                Prep = enumerable.Skip(1).Count() == 0 ? "" : enumerable.Skip(1).Aggregate((x, y) => x + " " + y)
+                Verb = initialCombination.ElementAt(0),
+                Prep = initialCombination.Skip(1).Count() == 0 ? "" : enumerable.Skip(1).Aggregate((x, y) => x + " " + y)
             };            
         }
-
         private static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
                         enumerable.Select(l => l.Select(x => x).Where(x =>
                         {
@@ -56,7 +67,6 @@ namespace normalization
                             }
                             return true;
                         }));
-
         private IEnumerable<IEnumerable<string>> GetCombinationsBySection(string section)
         {
             var noun = Regex.Replace(Path.GetFileName(this.fileName), ".txt", "", RegexOptions.IgnoreCase).ToLower();
@@ -68,11 +78,9 @@ namespace normalization
 
             return EnumerableExtensions.If(withoutMainNounCombinations, x => x.Select(l => l.Take(1)), section == "Section: Has Predicates");
         }
-
         private IEnumerable<IEnumerable<string>> GetCombinations() =>
             GetCombinationsBySection("Section: Has Predicates")
             .Backsert(GetCombinationsBySection("Section: Governed by Verbs"), 0);
-
         public Dictionary<VerbInfo, HashSet<IEnumerable<string>>> GetDictionaryOfInitialForms()
         {
             var initialVerbsDict = new Dictionary<VerbInfo, HashSet<IEnumerable<string>>>(new VerbsComparer());
@@ -90,7 +98,6 @@ namespace normalization
 
             return initialVerbsDict;
         }
-
         public Dictionary<VerbInfo, HashSet<VerbInfo>> NormalizeVerbs(Dictionary<string, string> perfectVerbsDict)
         {
             var initialVerbsFormDict = GetDictionaryOfInitialForms();           
@@ -101,7 +108,6 @@ namespace normalization
 
             return normalizedForms;
         }
-
         public void Dispose()
         {
             MorphAnalyzer.Instance.Dispose();

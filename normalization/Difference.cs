@@ -25,7 +25,8 @@ namespace Normalization
                 NounFrequency = e.NounFrequency,
                 VerbFrequency = e.VerbFrequency,
                 CombinationFrequency = e.CombinationFrequency
-            }).OrderByDescending(e => e.CombinationFrequency);
+            })
+            .OrderByDescending(e => e.CombinationFrequency);
         }
 
         public static IEnumerable<VerbInfo> GetDifferenceOfCrossLexicaCoSyCo(Dictionary<VerbInfo, HashSet<VerbInfo>> crossLexica,

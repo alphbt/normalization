@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace normalization
 {
-    public class VerbWithFrequencyInfo: VerbInfo
+    public class VerbWithFrequencyInfo : VerbInfo
     {
         public double NounFrequency { get; set; }
         public double VerbFrequency { get; set; }

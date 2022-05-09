@@ -50,11 +50,15 @@ namespace normalization
                }
                return initialForm.Equals("") ? x : initialForm;
             });
-          
+
+            var verb = initialCombination.ElementAt(0);
+            var prep = initialCombination.Skip(1).Any() ? enumerable.Skip(1).Aggregate((x, y) => x + " " + y) : "";
+            //TODO: CHECK prep зачем делать проверку на пустоту, можно сделать через aggregate seed = ""
+
             return new VerbInfo()
-            {
-                Verb = initialCombination.ElementAt(0),
-                Prep = initialCombination.Skip(1).Count() == 0 ? "" : enumerable.Skip(1).Aggregate((x, y) => x + " " + y)
+            { 
+                Verb = verb,
+                Prep = prep 
             };            
         }
         private static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>

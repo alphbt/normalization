@@ -45,16 +45,16 @@ namespace normalization
                 var values = normalizedForms[verb];
                 var weights = values.Sum(e => e.MinSen());
 
-                var weightedAveragesForVerb = values.Sum(e => e.MinSen() * e.VerbFrequency) / weights;
-                var weightedAveragesForComb = values.Sum(e => e.MinSen() * e.CombinationFrequency) / weights;
+                var weightedAveragesForVerb = Math.Round(values.Sum(e => e.MinSen() * e.VerbFrequency) / weights, 0);
+                var weightedAveragesForComb = Math.Round(values.Sum(e => e.MinSen() * e.CombinationFrequency) / weights, 0);
 
-                var normalizedVerb = new VerbWithFrequencyInfo()
+                var normalizedVerb = new VerbWithFrequencyInfo
                 {
                     Verb = verb.Verb,
                     Prep = verb.Prep,
                     NounFrequency = verb.NounFrequency,
-                    VerbFrequency = Math.Round(weightedAveragesForVerb, 0),
-                    CombinationFrequency = Math.Round(weightedAveragesForComb, 0)
+                    VerbFrequency = weightedAveragesForVerb,
+                    CombinationFrequency = weightedAveragesForComb
                 };
 
                 normalizedForms.Remove(verb);

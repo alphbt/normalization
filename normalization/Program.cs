@@ -15,7 +15,7 @@ namespace NetCoreExample
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         { 
             var perfPairsPath = @"..\..\..\..\..\..\PerfectVerbsPairs";
             System.Console.OutputEncoding = System.Text.Encoding.UTF8;
@@ -26,6 +26,7 @@ namespace NetCoreExample
             
             var crossLexFiles = Directory.GetFiles(basePath);
             using var crossLex = new CrossLexica();
+            var cosyco = new CoSyCo();
 
             foreach (var file in crossLexFiles)
             {
@@ -34,8 +35,8 @@ namespace NetCoreExample
                 basePathCos += fileName + @"\" + fileName;
                 var pth = @"..\..\..\..\..\..\CoSyCo\" + fileName;
 
-                var cosyco = new CoSyCo();
-                cosyco.Load(fileName);
+                
+                await cosyco.Load(fileName);
 
                 cosyco.WriteVerbsWithPreposotionToCsv(pth, "_ПРЕДЛОГ");
                 cosyco.WriteVerbsWithoutPreposotionToCsv(pth, "_БЕЗ_ПРЕДЛОГА");
@@ -55,7 +56,7 @@ namespace NetCoreExample
                 var ost = Difference.GetDifferenceOfCrossLexicaCoSyCo(allCombinations, mixCo);
                 ost.WriteToCsv(pth, fileName, "_ОСТ");
             }
-
+            
         }
     }
 }

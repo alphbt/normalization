@@ -4,32 +4,40 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Python.Included;
-using Python.Runtime;
 using Nito.AsyncEx.Synchronous;
+using Python.Runtime;
 
-namespace normalization
+namespace Normalization
 {
     public sealed class MorphAnalyzer : IDisposable
     {
         private static dynamic? instance;
         private static dynamic? analyzer;
         private bool disposedValue;
+        private IntPtr threadState;
 
         private MorphAnalyzer()
         {
-            Installer.InstallPath = Path.GetFullPath(".");
+            //Installer.InstallPath = Path.GetFullPath(".");
+            //Installer.SetupPython().WaitWithoutException();
+            //PythonEngine.Initialize();
 
-            Installer.SetupPython().WaitAndUnwrapException();
-            PythonEngine.Initialize();
-
-            if (!Installer.IsModuleInstalled("pymorphy2"))
+            
+            threadState = PythonEngine.BeginAllowThreads();
+            using (Py.GIL())
             {
-                Installer.TryInstallPip();
-                Installer.PipInstallModule("pymorphy2");
-            }
+                if (!Installer.IsModuleInstalled("pymorphy2"))
+                {
+                    Installer.TryInstallPip();
+                    Installer.PipInstallModule("pymorphy2");
+                }
 
-            dynamic importerPyMorphy2 = Py.Import("pymorphy2");
-            analyzer = importerPyMorphy2.MorphAnalyzer();
+                dynamic importerPyMorphy2 = Py.Import("pymorphy2");
+                analyzer = importerPyMorphy2.MorphAnalyzer();
+
+
+                disposedValue = false;
+            }
         }
 
         public static MorphAnalyzer Instance
@@ -57,12 +65,24 @@ namespace normalization
             {
                 if (disposing)
                 {
-                    instance = null;
-                    analyzer = null;
+                    //instance = null;
+                    //analyzer = null;
                 }
-
-                PythonEngine.Shutdown();
+                
                 disposedValue = true;
+
+                PythonEngine.EndAllowThreads(threadState);
+                PythonEngine.Shutdown();
+
+                /*
+                Runtime.TryCollectingGarbage(1);
+
+                Py.GIL().Dispose();
+
+                PythonEngine.Interrupt(PythonEngine.GetPythonThreadID());
+                PythonEngine.Interrupt((ulong)Runtime.MainManagedThreadId);
+                PythonEngine.Shutdown();
+                */
             }
         }
 

@@ -12,9 +12,9 @@ using static MoreLinq.Extensions.InsertExtension;
 using static MoreLinq.Extensions.BacksertExtension;
 
 
-namespace normalization
+namespace Normalization
 {
-    public class CrossLexica : IDisposable
+    public class CrossLexica 
     {
         private string fileName;
         static private List<string> tags = new List<string>() { "коллок", "локал", "книжн", "вульг", "неправ", "mb", "fig", "идиом", "и", "прямое", "не" };
@@ -35,41 +35,55 @@ namespace normalization
             l.Select(x => x.Select(y => y).Where(y => !tags.Contains(y)));
         private static VerbInfo GetInitialVerbForm(IEnumerable<string> enumerable)
         {
-            var initialCombination = enumerable.Select(x =>
+            using (Py.GIL())
             {
-               var initialForm = "";
-               foreach (var parsedStr in MorphAnalyzer.Instance.Analyzer.parse(x))
-               {
-                   string tag = (parsedStr.tag).ToString();
+                var initialCombination = enumerable.Select(x =>
+                {
+                    var initialForm = "";
+                    var analyzer = MorphAnalyzer.Instance.Analyzer;
+                    foreach (var parsedStr in analyzer.parse(x))
+                    {
+                        string tag = (parsedStr.tag).ToString();
 
-                   if (tag.Contains("INFN") || tag.Contains("VERB"))
-                   {
-                       initialForm = (parsedStr.normal_form).ToString();
-                       break;
-                   }
-               }
-               return initialForm.Equals("") ? x : initialForm;
-            });
+                        if (tag.Contains("INFN") || tag.Contains("VERB"))
+                        {
+                            initialForm = (parsedStr.normal_form).ToString();
+                            break;
+                        }
+                    }
+                    return initialForm.Equals("") ? x : initialForm;
+                });
 
-            var verb = initialCombination.ElementAt(0);
-            var prep = initialCombination.Skip(1).Any() ? enumerable.Skip(1).Aggregate((x, y) => x + " " + y) : "";
-            //TODO: CHECK prep зачем делать проверку на пустоту, можно сделать через aggregate seed = ""
 
-            return new VerbInfo()
-            { 
-                Verb = verb,
-                Prep = prep 
-            };            
+                var verb = initialCombination.ElementAt(0);
+                var prep = initialCombination.Skip(1).Any() ? enumerable.Skip(1).Aggregate((x, y) => x + " " + y) : "";
+                //TODO: CHECK prep зачем делать проверку на пустоту, можно сделать через aggregate seed = ""
+
+                return new VerbInfo()
+                {
+                    Verb = verb,
+                    Prep = prep
+                };
+            }
         }
         private static IEnumerable<IEnumerable<string>> RemoveMainNoun(IEnumerable<IEnumerable<string>> enumerable, string noun) =>
                         enumerable.Select(l => l.Select(x => x).Where(x =>
                         {
-                            foreach (var i in MorphAnalyzer.Instance.Analyzer.parse(x))
+                            using (Py.GIL())
                             {
-                                string r = (i.normal_form).ToString();
-                                if (r.Equals(noun)) return false;
+                                var instance = MorphAnalyzer.Instance.Analyzer;
+                                dynamic parsedData = instance.parse(x);
+
+                                //parsedData = instance.parse(x);
+
+                                foreach (var i in parsedData)
+                                {
+                                    string r = (i.normal_form).ToString();
+                                    if (r.Equals(noun)) return false;
+                                }
+
+                                return true;
                             }
-                            return true;
                         }));
         private IEnumerable<IEnumerable<string>> GetCombinationsBySection(string section)
         {
@@ -111,10 +125,6 @@ namespace normalization
             normalizedForms = initialVerbsForm.CompressVerb<VerbInfo>(perfectVerbsDict);
 
             return normalizedForms;
-        }
-        public void Dispose()
-        {
-            MorphAnalyzer.Instance.Dispose();
         }
     }
 }

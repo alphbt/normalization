@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using ConnectionToCoSyCo;
 using System.Linq.Expressions;
 
-namespace normalization
+namespace Normalization
 {
     public class CoSyCo
     {
@@ -66,12 +66,12 @@ namespace normalization
                     VerbFrequency = n.Sum(c => c.comb.verb.freq),
                     NounFrequency = n.Sum(c => c.noun.freq)
                 })
-                .OrderByDescending(n => n.CombinationFrequency).ToListAsync();
+                .ToListAsync();
 
             return resultTable.Select(e => new VerbWithFrequencyInfo()
             {
-                Verb = e.Verb,
-                Prep = e.Prep,
+                Verb = e.Verb.ToLower(),
+                Prep = e.Prep.ToLower(),
                 NounFrequency = e.NounFrequency,
                 VerbFrequency = e.VerbFrequency,
                 CombinationFrequency = e.CombinationFrequency
@@ -84,19 +84,7 @@ namespace normalization
         private async Task SetVerbWithoutPreposition()
         {
             verbWithoutPreposition = await GetCombination(true);
-        }
-        public void WriteVerbsWithPreposotionToCsv(string path, string suffix ="")
-        {
-            verbWithPreposition.WriteToCsv(path, this.token.ToUpper(), suffix);
-        }
-        public void WriteVerbsWithoutPreposotionToCsv(string path, string suffix = "")
-        {
-            verbWithoutPreposition.WriteToCsv(path, this.token.ToUpper(), suffix);
-        }
-        public void WriteVerbsCollectionToCsv(string path, string suffix = "")
-        {
-            combinations.WriteToCsv(path, this.token.ToUpper(), suffix);
-        }
+        }       
         public Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> NormalizeVerbs(IDictionary<string, string> perfectVerbsDict)
         {
             return combinations.CompressVerb(perfectVerbsDict);

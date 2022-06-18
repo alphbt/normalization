@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 
-namespace normalization
+namespace Normalization
 {
     public static class Normalizator
     {
@@ -36,7 +36,38 @@ namespace normalization
             return normalizedForms;
         }
 
-        public static void RecalculateMeasures(Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> normalizedForms)
+        public static Dictionary<T, HashSet<T>> CompressVervsWithoutPreposition<T>(this Dictionary<T, HashSet<T>> normalizedFromsDict) where T : VerbInfo ,new()
+        {
+            var normalizedFormsWithoutPreposition = new Dictionary<T, HashSet<T>>(new VerbsWithoutPrepositionComparer());
+
+            var normalizedForms = normalizedFromsDict.Keys;
+
+            foreach (var comb in normalizedForms)
+            {
+                var combWithoutPreposition = new T();
+                var properties = combWithoutPreposition.GetType().GetProperties();
+                foreach (var property in properties)
+                {
+                    property.SetValue(combWithoutPreposition, comb.GetType().GetProperty(property.Name).GetValue(comb));
+                }
+                combWithoutPreposition.Prep = "";
+
+                if(!normalizedFormsWithoutPreposition.ContainsKey(combWithoutPreposition))
+                {
+                    normalizedFormsWithoutPreposition.Add(combWithoutPreposition, new HashSet<T>(new VerbsComparer()));
+                }
+                normalizedFormsWithoutPreposition[combWithoutPreposition].Add(comb);
+            }
+
+            if (normalizedForms.First().GetType().Equals(typeof(VerbWithFrequencyInfo)))
+            {
+                RecalculateMeasures(normalizedFormsWithoutPreposition as Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>>);
+            }
+
+            return normalizedFormsWithoutPreposition;
+        }
+
+        private static void RecalculateMeasures(Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> normalizedForms)
         {
             var resultVerbs = new List<VerbWithFrequencyInfo>(normalizedForms.Keys);
 

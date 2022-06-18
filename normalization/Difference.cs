@@ -1,5 +1,4 @@
-﻿using normalization;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,12 +12,12 @@ namespace Normalization
         {
             return first.Except(second, new VerbsComparer());
         }
-        public static IEnumerable<VerbWithFrequencyInfo> GetDifferenceOfCoSyCoCrossLexica(Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> cosyco, 
-            Dictionary<VerbInfo, HashSet<VerbInfo>> crossLexica)
+        public static IEnumerable<VerbWithFrequencyInfo> GetDifferenceOfCoSyCoCrossLexica(IEnumerable<VerbWithFrequencyInfo> cosyco, 
+            IEnumerable<VerbInfo> crossLexica)
         {
-            var difference = GetDifference(cosyco.Keys, crossLexica.Keys);
+            var difference = GetDifference(cosyco, crossLexica);
 
-            return cosyco.Keys.Join(difference, e => e.Verb, x => x.Verb, (e, x) => new VerbWithFrequencyInfo()
+            return cosyco.Join(difference, e => e.Verb, x => x.Verb, (e, x) => new VerbWithFrequencyInfo()
             {
                 Verb = x.Verb,
                 Prep = x.Prep,
@@ -29,10 +28,10 @@ namespace Normalization
             .OrderByDescending(e => e.CombinationFrequency);
         }
 
-        public static IEnumerable<VerbInfo> GetDifferenceOfCrossLexicaCoSyCo(Dictionary<VerbInfo, HashSet<VerbInfo>> crossLexica,
-            Dictionary<VerbWithFrequencyInfo, HashSet<VerbWithFrequencyInfo>> cosyco)
+        public static IEnumerable<VerbInfo> GetDifferenceOfCrossLexicaCoSyCo(IEnumerable<VerbInfo> crossLexica,
+            IEnumerable<VerbWithFrequencyInfo> cosyco)
         {
-            return GetDifference(crossLexica.Keys, cosyco.Keys);
+            return GetDifference(crossLexica, cosyco);
         }
     }
 }
